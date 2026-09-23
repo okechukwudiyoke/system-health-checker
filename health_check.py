@@ -1,11 +1,12 @@
 import json
+import os
 import platform
 import shutil
 import socket
 import time
 
 import psutil
-
+import requests
 
 CPU_WARNING = 70
 CPU_CRITICAL = 90
@@ -35,6 +36,32 @@ def create_incident(hostname, metric, value, threshold, severity):
         "threshold": threshold,
         "severity": severity.lower(),
     }
+
+def send_incident(incident):
+    """Send an incident event to the configured n8n webhook."""
+    webhook_url = os.getenv("N8N_WEBHOOK_URL")
+
+    if not webhook_url:
+        print("Webhook delivery skipped: N8N_WEBHOOK_URL is not set.")
+        return False
+
+    try:
+        response = requests.post(
+            webhook_url,
+            json=incident,
+            timeout=5,
+        )
+        response.raise_for_status()
+
+        print(
+            f"Webhook delivered successfully: "
+            f"{incident['metric']} ({incident['severity']})"
+        )
+        return True
+
+    except requests.RequestException as error:
+        print(f"Webhook delivery failed: {error}")
+        return False
 
 def evaluate_metric(
     hostname,
@@ -169,6 +196,9 @@ def main():
         print("\nIncident Events:")
         print(json.dumps(incidents, indent=2))
 
+
+        for incident in incidents:
+           send_incident(incident)
     print("=" * 55)
 
 
